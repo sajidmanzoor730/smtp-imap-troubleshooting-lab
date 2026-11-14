@@ -17,6 +17,13 @@ class ImapProbeTests(unittest.TestCase):
         self.assertTrue(r.ok, r.to_text())
         self.assertIn("IMAP4rev1", r.capabilities)
 
+    def test_xoauth2_login_and_token_redaction(self):
+        with ImapMock("ok") as srv:
+            r = probe(srv, username="lab", bearer_token="mock-access-token", allow_insecure_auth=True)
+        self.assertTrue(r.ok, r.to_text())
+        self.assertIn("AUTHENTICATE XOAUTH2 <bearer token hidden>", r.to_text())
+        self.assertNotIn("mock-access-token", r.to_text())
+
     def test_bad_login_is_auth_category(self):
         with ImapMock("ok") as srv:
             r = probe(srv, username="lab", password="wrong", allow_insecure_auth=True)

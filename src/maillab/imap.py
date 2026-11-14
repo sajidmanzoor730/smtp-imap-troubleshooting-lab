@@ -55,9 +55,9 @@ class ImapProbe:
         result = ProbeResult("imap", self.host, self.port, self.mode)
         try:
             self._run(result)
-        except imaplib.IMAP4.error:
-            # Provider error text is intentionally omitted; it can contain account data.
-            result.fail(self._stage, classify_imap("authentication or IMAP command rejected"))
+        except imaplib.IMAP4.error as exc:
+            # Use the response for classification but do not echo raw server text into reports.
+            result.fail(self._stage, classify_imap(str(exc)))
         except Exception as exc:  # noqa: BLE001 - classified below
             result.fail(self._stage, classify_network(exc, self._stage), f"{type(exc).__name__}: {exc}")
         finally:

@@ -14,12 +14,12 @@ from .errors import classify
 from .imap import MODES as IMAP_PROBE_MODES
 from .imap import ImapProbe
 from .mock import IMAP_MODES, SMTP_MODES, ImapMock, SmtpMock
+from .oauth import OAuthTokenError, refresh_access_token
 from .smtp import MODES as SMTP_PROBE_MODES
 from .smtp import SmtpProbe
 
 
 def _password(args: argparse.Namespace) -> str | None:
-    """Passwords come from an environment variable, never from argv (shell history, ps)."""
     if not args.password_env:
         return None
     value = os.environ.get(args.password_env)
@@ -29,12 +29,48 @@ def _password(args: argparse.Namespace) -> str | None:
 
 
 def _token(args: argparse.Namespace) -> str | None:
-    if not args.oauth2_token_env:
-        return None
-    value = os.environ.get(args.oauth2_token_env)
-    if value is None:
-        raise SystemExit(f"error: environment variable {args.oauth2_token_env} is not set")
-    return value
+    direct_name = getattr(args, "oauth2_token_env", None)
+    refresh_name = getattr(args, "oauth2_refresh_token_env", None)
+    if direct_name and refresh_name:
+        raise SystemExit("error: choose an access token or a refresh token, not both")
+    if direct_name:
+        value = os.environ.get(direct_name)
+        if value is None:
+            raise SystemExit(f"error: environment variable {direct_name} is not set")
+        return value
+    if refresh_name:
+        refresh = os.environ.get(refresh_name)
+        client_id_name = getattr(args, "oauth2_client_id_env", None)
+        secret_name = getattr(args, "oauth2_client_secret_env", None)
+        if not refresh:
+            raise SystemExit(f"error: environment variable {refresh_name} is not set")
+        if not getattr(args, "oauth2_token_url", None) or not client_id_name:
+            raise SystemExit("error: refresh-token mode requires --oauth2-token-url and --oauth2-client-id-env")
+        client_id = os.environ.get(client_id_name)
+        if not client_id:
+            raise SystemExit(f"error: environment variable {client_id_name} is not set")
+        client_secret = os.environ.get(secret_name) if secret_name else None
+        if secret_name and client_secret is None:
+            raise SystemExit(f"error: environment variable {secret_name} is not set")
+        try:
+            return refresh_access_token(
+                args.oauth2_token_url, client_id, refresh, client_secret,
+                getattr(args, "oauth2_scope", None), getattr(args, "timeout", 15.0),
+            )
+        except OAuthTokenError as exc:
+            raise SystemExit(f"error: {exc}") from None
+    return None
+
+
+def _add_auth_options(parser: argparse.ArgumentParser) -> None:
+    auth = parser.add_mutually_exclusive_group()
+    auth.add_argument("--password-env", help="environment variable containing the password")
+    auth.add_argument("--oauth2-token-env", help="environment variable containing a short-lived OAuth2 access token")
+    auth.add_argument("--oauth2-refresh-token-env", help="environment variable containing an OAuth2 refresh token")
+    parser.add_argument("--oauth2-token-url", help="HTTPS OAuth2 token endpoint (refresh-token mode)")
+    parser.add_argument("--oauth2-client-id-env", help="environment variable containing the OAuth2 client ID")
+    parser.add_argument("--oauth2-client-secret-env", help="environment variable containing the OAuth2 client secret (if required)")
+    parser.add_argument("--oauth2-scope", help="provider-required scope for refresh-token exchange")
 
 
 def _emit(result, as_json: bool) -> int:
@@ -52,9 +88,7 @@ def _build_parser() -> argparse.ArgumentParser:
     smtp.add_argument("--port", type=int, default=587)
     smtp.add_argument("--mode", choices=SMTP_PROBE_MODES, default="starttls")
     smtp.add_argument("--user")
-    auth = smtp.add_mutually_exclusive_group()
-    auth.add_argument("--password-env", help="name of the environment variable holding the password")
-    auth.add_argument("--oauth2-token-env", help="name of the environment variable holding an OAuth2 access token (XOAUTH2)")
+    _add_auth_options(smtp)
     smtp.add_argument("--mail-from")
     smtp.add_argument("--rcpt-to")
     smtp.add_argument("--timeout", type=float, default=10.0)
@@ -67,7 +101,7 @@ def _build_parser() -> argparse.ArgumentParser:
     imap.add_argument("--port", type=int)
     imap.add_argument("--mode", choices=IMAP_PROBE_MODES, default="ssl")
     imap.add_argument("--user")
-    imap.add_argument("--password-env")
+    _add_auth_options(imap)
     imap.add_argument("--mailbox", default="INBOX")
     imap.add_argument("--timeout", type=float, default=10.0)
     imap.add_argument("--insecure-skip-verify", action="store_true")
@@ -92,31 +126,18 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     if args.command == "smtp":
         probe = SmtpProbe(
-            args.host,
-            args.port,
-            args.mode,
-            args.user,
-            _password(args),
-            args.timeout,
-            mail_from=args.mail_from,
-            rcpt_to=args.rcpt_to,
+            args.host, args.port, args.mode, args.user, _password(args), args.timeout,
+            mail_from=args.mail_from, rcpt_to=args.rcpt_to,
             verify_tls=not args.insecure_skip_verify,
-            allow_insecure_auth=args.allow_insecure_auth,
-            bearer_token=_token(args),
+            allow_insecure_auth=args.allow_insecure_auth, bearer_token=_token(args),
         )
         return _emit(probe.run(), args.json)
 
     if args.command == "imap":
         probe = ImapProbe(
-            args.host,
-            args.port,
-            args.mode,
-            args.user,
-            _password(args),
-            args.mailbox,
-            args.timeout,
+            args.host, args.port, args.mode, args.user, _password(args), args.mailbox, args.timeout,
             verify_tls=not args.insecure_skip_verify,
-            allow_insecure_auth=args.allow_insecure_auth,
+            allow_insecure_auth=args.allow_insecure_auth, bearer_token=_token(args),
         )
         return _emit(probe.run(), args.json)
 

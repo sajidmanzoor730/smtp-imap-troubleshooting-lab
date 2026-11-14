@@ -28,6 +28,15 @@ def _password(args: argparse.Namespace) -> str | None:
     return value
 
 
+def _token(args: argparse.Namespace) -> str | None:
+    if not args.oauth2_token_env:
+        return None
+    value = os.environ.get(args.oauth2_token_env)
+    if value is None:
+        raise SystemExit(f"error: environment variable {args.oauth2_token_env} is not set")
+    return value
+
+
 def _emit(result, as_json: bool) -> int:
     print(json.dumps(result.to_dict(), indent=2) if as_json else result.to_text())
     return 0 if result.ok else 1
@@ -43,7 +52,9 @@ def _build_parser() -> argparse.ArgumentParser:
     smtp.add_argument("--port", type=int, default=587)
     smtp.add_argument("--mode", choices=SMTP_PROBE_MODES, default="starttls")
     smtp.add_argument("--user")
-    smtp.add_argument("--password-env", help="name of the environment variable holding the password")
+    auth = smtp.add_mutually_exclusive_group()
+    auth.add_argument("--password-env", help="name of the environment variable holding the password")
+    auth.add_argument("--oauth2-token-env", help="name of the environment variable holding an OAuth2 access token (XOAUTH2)")
     smtp.add_argument("--mail-from")
     smtp.add_argument("--rcpt-to")
     smtp.add_argument("--timeout", type=float, default=10.0)
@@ -91,6 +102,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             rcpt_to=args.rcpt_to,
             verify_tls=not args.insecure_skip_verify,
             allow_insecure_auth=args.allow_insecure_auth,
+            bearer_token=_token(args),
         )
         return _emit(probe.run(), args.json)
 

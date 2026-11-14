@@ -70,6 +70,7 @@ class SmtpProbe:
         rcpt_to: str | None = None,
         verify_tls: bool = True,
         allow_insecure_auth: bool = False,
+        bearer_token: str | None = None,
     ) -> None:
         if mode not in MODES:
             raise ValueError(f"mode must be one of {MODES}")
@@ -84,6 +85,7 @@ class SmtpProbe:
         self.rcpt_to = rcpt_to
         self.verify_tls = verify_tls
         self.allow_insecure_auth = allow_insecure_auth
+        self.bearer_token = bearer_token
         self._sock: socket.socket | None = None
         self._conn: _Conn | None = None
         self._stage = "tcp connect"
@@ -202,7 +204,7 @@ class SmtpProbe:
                 return
             result.capabilities = self._capabilities(lines)
 
-        if self.username is not None and self.password is not None:
+        if self.username is not None and (self.password is not None or self.bearer_token is not None):
             if not self._authenticate(result):
                 return
 
@@ -220,13 +222,22 @@ class SmtpProbe:
             pass
 
     def _authenticate(self, result: ProbeResult) -> bool:
-        assert self.username is not None and self.password is not None
+        assert self.username is not None
         if not self._encrypted and not self.allow_insecure_auth:
             result.fail("auth", diagnose_insecure_auth())
             return False
         if not any(c.upper().startswith("AUTH") for c in result.capabilities):
             result.fail("auth", classify(504, "5.5.4 AUTH not advertised by server"))
             return False
+        if self.bearer_token is not None:
+            if not any("XOAUTH2" in c.upper() for c in result.capabilities):
+                result.fail("auth", classify(504, "5.5.4 AUTH XOAUTH2 not advertised by server"))
+                return False
+            payload = f"user={self.username}\\x01auth=Bearer {self.bearer_token}\\x01\\x01"
+            encoded = base64.b64encode(payload.encode()).decode()
+            ok, _, _ = self._cmd(result, "auth xoauth2", f"AUTH XOAUTH2 {encoded}", {235}, shown="AUTH XOAUTH2 <bearer token hidden>")
+            return ok
+        assert self.password is not None
         ok, _, _ = self._cmd(result, "auth login", "AUTH LOGIN", {334})
         if not ok:
             return False

@@ -11,7 +11,8 @@ It includes:
 - **A diagnosis engine** that maps reply codes and socket/TLS errors to likely causes and next steps.
 - **A fault-injecting mock server** that reproduces real failures (STARTTLS refused, reset mid-STARTTLS, 535, relay denied, greylisting, blackholed ports) so you can practise safely.
 - **Runbooks and Wireshark filter guides** for the same failure classes.
-- **A test suite** that runs every failure mode against the probes.
+- **Modern authentication coverage** including SMTP AUTH LOGIN and XOAUTH2 bearer-token authentication with transcript redaction.
+- **A test suite** that runs local protocol failure modes and authentication paths against the probes.
 
 Python 3.11+, standard library only. Use it only against servers and accounts you own or are authorised to test.
 
@@ -32,6 +33,11 @@ maillab smtp smtp.example.test --port 587 --mode starttls --user me@example.test
 # Practise locally: start a mock server that refuses STARTTLS
 maillab mock smtp --mode starttls_unavailable --port 2525
 maillab smtp 127.0.0.1 --port 2525 --mode starttls
+
+# Probe a provider with a short-lived OAuth2 access token (never pass it as an argument)
+export MAILLAB_TOKEN='short-lived-access-token'
+maillab smtp smtp.example.test --port 587 --mode starttls --user me@example.test --oauth2-token-env MAILLAB_TOKEN
+unset MAILLAB_TOKEN
 ```
 
 Example output against the `starttls_unavailable` mock:
@@ -75,7 +81,7 @@ Exit code is `0` when every check passes and `1` when a check fails, so probes c
 |------|-----------|--------------------|
 | `starttls_unavailable` | `454 4.7.0` after STARTTLS | tls |
 | `starttls_reset` | connection reset right after STARTTLS (firewall-like) | network |
-| `auth_fail` | `535` on AUTH | auth |
+| `auth_fail` | `535` on AUTH LOGIN or XOAUTH2 | auth |
 | `no_auth` | AUTH not advertised | auth |
 | `relay_denied` | `554 5.7.1` on RCPT TO | policy |
 | `greylist` | `451 4.7.1` on RCPT TO | transient |
@@ -92,6 +98,8 @@ Mock credentials: user `lab`, password `secret`. The mock listens on `127.0.0.1`
 - [Troubleshooting runbook](docs/runbook.md)
 - [Wireshark filters](docs/wireshark-filters.md)
 - [SMTP/IMAP reply code reference](docs/smtp-error-codes.md)
+- [DNS and email-authentication investigation](docs/dns-email-authentication.md): MX, SPF, DKIM, DMARC and TLS reporting checks
+- [Provider compatibility worksheet](docs/provider-compatibility.md): verified local scope and a repeatable external-provider test plan
 
 ## Project layout
 
@@ -110,7 +118,8 @@ captures/     sanitized captures from your own lab runs
 
 ## Design choices
 
-- **Passwords never appear on the command line.** They are read from an environment variable and are masked in transcripts.
+- **Passwords and OAuth2 tokens never appear on the command line.** They are read from environment variables; authentication payloads are masked in transcripts.
+- **OAuth2 token acquisition is intentionally external.** The SMTP probe supports XOAUTH2 with a supplied access token; it does not implement provider consent, refresh or scope management.
 - **Credentials are refused over unencrypted connections** unless you pass `--allow-insecure-auth`, which is meant for the local mock only.
 - **TLS verification is on by default.** `--insecure-skip-verify` exists for lab servers with self-signed certificates.
 - **Probes never send a message body.** The envelope check stops after `RCPT TO` and sends `RSET`.

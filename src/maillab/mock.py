@@ -249,8 +249,19 @@ class ImapMock(_ThreadedServer):
             tag, verb = parts[0], parts[1].upper()
             args = parts[2] if len(parts) > 2 else ""
             if verb == "CAPABILITY":
-                await _send(writer, "* CAPABILITY IMAP4rev1 AUTH=PLAIN")
+                await _send(writer, "* CAPABILITY IMAP4rev1 AUTH=PLAIN AUTH=XOAUTH2")
                 await _send(writer, f"{tag} OK CAPABILITY completed")
+            elif verb == "AUTHENTICATE" and args.upper() == "XOAUTH2":
+                encoded = (await reader.readline()).strip()
+                try:
+                    payload = base64.b64decode(encoded, validate=True).decode("utf-8")
+                except (ValueError, UnicodeDecodeError):
+                    payload = ""
+                expected = f"user={LAB_USER}\\x01auth=Bearer mock-access-token\\x01\\x01"
+                if self.mode != "auth_fail" and payload == expected:
+                    await _send(writer, f"{tag} OK XOAUTH2 authentication successful")
+                else:
+                    await _send(writer, f"{tag} NO [AUTHENTICATIONFAILED] OAuth2 credentials invalid")
             elif verb == "LOGIN":
                 bits = args.replace('"', "").split(" ")
                 good = len(bits) == 2 and bits[0] == LAB_USER and bits[1] == LAB_PASSWORD

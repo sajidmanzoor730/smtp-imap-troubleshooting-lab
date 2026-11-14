@@ -258,7 +258,7 @@ class ImapMock(_ThreadedServer):
                     payload = base64.b64decode(encoded, validate=True).decode("utf-8")
                 except (ValueError, UnicodeDecodeError):
                     payload = ""
-                expected = f"user={LAB_USER}\\x01auth=Bearer mock-access-token\\x01\\x01"
+                expected = f"user={LAB_USER}\x01auth=Bearer mock-access-token\x01\x01"
                 if self.mode != "auth_fail" and payload == expected:
                     await _send(writer, f"{tag} OK XOAUTH2 authentication successful")
                 else:

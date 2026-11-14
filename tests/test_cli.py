@@ -3,6 +3,7 @@ import io
 import json
 import os
 import unittest
+from unittest.mock import patch
 
 from maillab.cli import main
 from maillab.mock import SmtpMock
@@ -61,6 +62,29 @@ class CliTests(unittest.TestCase):
         self.assertEqual(code, 0, out)
         self.assertNotIn("mock-access-token", out)
         self.assertIn("AUTH XOAUTH2 <bearer token hidden>", out)
+
+    @patch("maillab.cli.refresh_access_token", return_value="mock-access-token")
+    def test_refresh_token_env_is_exchanged_without_logging_secrets(self, refresh):
+        os.environ["MAILLAB_TEST_REFRESH"] = "refresh-secret"
+        os.environ["MAILLAB_TEST_CLIENT"] = "client-id"
+        os.environ["MAILLAB_TEST_CLIENT_SECRET"] = "client-secret"
+        try:
+            with SmtpMock("ok") as srv:
+                code, out = run(
+                    "smtp", "127.0.0.1", "--port", str(srv.port), "--mode", "plain",
+                    "--user", "lab", "--oauth2-refresh-token-env", "MAILLAB_TEST_REFRESH",
+                    "--oauth2-token-url", "https://oauth.example.test/token",
+                    "--oauth2-client-id-env", "MAILLAB_TEST_CLIENT",
+                    "--oauth2-client-secret-env", "MAILLAB_TEST_CLIENT_SECRET",
+                    "--allow-insecure-auth", "--timeout", "3",
+                )
+        finally:
+            for name in ("MAILLAB_TEST_REFRESH", "MAILLAB_TEST_CLIENT", "MAILLAB_TEST_CLIENT_SECRET"):
+                os.environ.pop(name, None)
+        self.assertEqual(code, 0, out)
+        self.assertNotIn("refresh-secret", out)
+        self.assertNotIn("client-secret", out)
+        refresh.assert_called_once()
 
     def test_missing_password_env_exits(self):
         with self.assertRaises(SystemExit):

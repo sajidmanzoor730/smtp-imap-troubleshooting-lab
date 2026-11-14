@@ -107,6 +107,11 @@ class ImapProbe:
             client.starttls(self._context())
             result.tls_version = client.socket().version()
             result.add(Step("starttls", "STARTTLS", None, [result.tls_version or ""], (time.monotonic() - start) * 1000))
+            # Providers may advertise AUTH mechanisms only after TLS.
+            _, data = client.capability()
+            caps = data[0].decode().split()
+            result.capabilities = caps
+            result.add(Step("capability (after tls)", "CAPABILITY", None, [" ".join(caps)], 0.0))
 
         if self.username is not None and (self.password is not None or self.bearer_token is not None):
             encrypted = self.mode in ("ssl", "starttls")

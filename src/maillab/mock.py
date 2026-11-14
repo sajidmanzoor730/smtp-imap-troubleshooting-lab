@@ -252,6 +252,7 @@ class ImapMock(_ThreadedServer):
                 await _send(writer, "* CAPABILITY IMAP4rev1 AUTH=PLAIN AUTH=XOAUTH2")
                 await _send(writer, f"{tag} OK CAPABILITY completed")
             elif verb == "AUTHENTICATE" and args.upper() == "XOAUTH2":
+                await _send(writer, "+ ")
                 encoded = (await reader.readline()).strip()
                 try:
                     payload = base64.b64decode(encoded, validate=True).decode("utf-8")

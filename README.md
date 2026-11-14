@@ -1,7 +1,5 @@
 # SMTP/IMAP Troubleshooting Lab
 
-![SMTP/IMAP Troubleshooting Lab banner](assets/smtp-imap-lab-banner.svg)
-
 [![CI](https://github.com/sajidmanzoor730/smtp-imap-troubleshooting-lab/actions/workflows/ci.yml/badge.svg)](https://github.com/sajidmanzoor730/smtp-imap-troubleshooting-lab/actions/workflows/ci.yml)
 
 A zero-dependency Python toolkit for diagnosing email delivery problems the way an L2 support engineer does:

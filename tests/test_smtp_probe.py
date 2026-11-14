@@ -81,6 +81,13 @@ class PlainModeTests(unittest.TestCase):
         self.assertEqual(r.failed_at, "tcp connect")
         self.assertEqual(r.diagnosis.summary, "Connection refused")
 
+    def test_xoauth2_success_and_token_redaction(self):
+        with SmtpMock("ok") as srv:
+            r = probe(srv, username="lab", bearer_token="mock-access-token", allow_insecure_auth=True)
+        self.assertTrue(r.ok, r.to_text())
+        self.assertIn("AUTH XOAUTH2 <bearer token hidden>", r.to_text())
+        self.assertNotIn("mock-access-token", r.to_text())
+
 
 class StarttlsFailureTests(unittest.TestCase):
     """The failure class from the voicemail-to-email case study."""

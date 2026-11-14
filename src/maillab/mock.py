@@ -152,7 +152,7 @@ class SmtpMock(_ThreadedServer):
                 if offers_tls and not tls_active:
                     caps.append("STARTTLS")
                 if self.mode != "no_auth":
-                    caps.append("AUTH LOGIN")
+                    caps.append("AUTH LOGIN XOAUTH2")
                 for cap in caps[:-1]:
                     await _send(writer, f"250-{cap}")
                 await _send(writer, f"250 {caps[-1]}")
@@ -180,6 +180,17 @@ class SmtpMock(_ThreadedServer):
                         await _send(writer, "235 2.7.0 Authentication successful")
                     else:
                         await _send(writer, "535 5.7.8 Authentication credentials invalid")
+                elif command.upper().startswith("AUTH XOAUTH2 "):
+                    try:
+                        encoded = command.split(" ", 2)[2]
+                        payload = base64.b64decode(encoded, validate=True).decode("utf-8")
+                    except (ValueError, UnicodeDecodeError, IndexError):
+                        payload = ""
+                    expected = f"user={LAB_USER}\\x01auth=Bearer mock-access-token\\x01\\x01"
+                    if self.mode != "auth_fail" and payload == expected:
+                        await _send(writer, "235 2.7.0 Authentication successful")
+                    else:
+                        await _send(writer, "535 5.7.8 OAuth2 credentials invalid")
                 else:
                     await _send(writer, "504 5.5.4 Unrecognized authentication type")
             elif verb == "MAIL":

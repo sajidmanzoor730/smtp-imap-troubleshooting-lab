@@ -18,7 +18,7 @@ class PlainModeTests(unittest.TestCase):
             r = probe(srv, username="lab", password="secret", allow_insecure_auth=True,
                       mail_from="a@example.test", rcpt_to="b@example.test")
         self.assertTrue(r.ok, r.to_text())
-        self.assertIn("AUTH LOGIN", r.capabilities)
+        self.assertTrue(any(c.startswith("AUTH LOGIN") for c in r.capabilities))
 
     def test_credentials_refused_without_tls(self):
         with SmtpMock("ok") as srv:

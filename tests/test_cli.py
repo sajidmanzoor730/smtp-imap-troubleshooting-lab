@@ -49,6 +49,19 @@ class CliTests(unittest.TestCase):
         self.assertEqual(code, 0, out)
         self.assertNotIn("secret", out)
 
+    def test_oauth2_token_read_from_environment_and_redacted(self):
+        os.environ["MAILLAB_TEST_TOKEN"] = "mock-access-token"
+        try:
+            with SmtpMock("ok") as srv:
+                code, out = run("smtp", "127.0.0.1", "--port", str(srv.port), "--mode", "plain",
+                                "--user", "lab", "--oauth2-token-env", "MAILLAB_TEST_TOKEN",
+                                "--allow-insecure-auth", "--timeout", "3")
+        finally:
+            del os.environ["MAILLAB_TEST_TOKEN"]
+        self.assertEqual(code, 0, out)
+        self.assertNotIn("mock-access-token", out)
+        self.assertIn("AUTH XOAUTH2 <bearer token hidden>", out)
+
     def test_missing_password_env_exits(self):
         with self.assertRaises(SystemExit):
             run("smtp", "127.0.0.1", "--user", "lab", "--password-env", "MAILLAB_DOES_NOT_EXIST")

@@ -11,7 +11,7 @@
 [![Zero dependencies](https://img.shields.io/badge/runtime-dependency--free-16A085)](pyproject.toml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-64748b.svg)](LICENSE)
 
-[Quick start](#quick-start) · [Capabilities](#capabilities) · [Architecture](docs/architecture.md) · [Lab exercises](docs/lab-guide.md) · [Runbook](docs/runbook.md) · [Security](SECURITY.md)
+[Quick start](#quick-start) · [Capabilities](#capabilities) · [Architecture](docs/architecture.md) · [Lab exercises](docs/lab-guide.md) · [Runbook](docs/runbook.md) · [Security](SECURITY.md) · [Incident playbooks](docs/incident-playbooks.md) · [Interactive demo](demo/index.html)
 
 </div>
 

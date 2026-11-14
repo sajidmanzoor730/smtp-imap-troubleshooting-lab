@@ -233,7 +233,7 @@ class SmtpProbe:
             if not any("XOAUTH2" in c.upper() for c in result.capabilities):
                 result.fail("auth", classify(504, "5.5.4 AUTH XOAUTH2 not advertised by server"))
                 return False
-            payload = f"user={self.username}\\x01auth=Bearer {self.bearer_token}\\x01\\x01"
+            payload = f"user={self.username}\x01auth=Bearer {self.bearer_token}\x01\x01"
             encoded = base64.b64encode(payload.encode()).decode()
             ok, _, _ = self._cmd(result, "auth xoauth2", f"AUTH XOAUTH2 {encoded}", {235}, shown="AUTH XOAUTH2 <bearer token hidden>")
             return ok
